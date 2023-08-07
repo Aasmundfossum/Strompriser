@@ -464,3 +464,10 @@ class Strompriskalk:
 
 
 Strompriskalk().regn_ut_strompris()
+
+
+# Mulige forbedringer/tillegg:
+# Forbruksavgift er nå inkludert i energiledd, men den bør kanskje skilles ut og plasseres i kategorien "offentlige avgifter" sammen med Enovaavgift.
+# Mindre næringskunder skal muligens også betale Enovapåslag på 800 kr/år, men dette er kun lagt inn for større næringskunder.
+# Excel-filene med prissatser kan eventuelt bygges inn i koden i stedet for at de skal lastes opp. Kan også legge til prissatser fra flere nettselskaper.
+# Bør kanskje legges inn noe som gjør at koden fungerer selv om timesforbruket er fra et skuddår.
