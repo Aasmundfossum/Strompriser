@@ -58,27 +58,27 @@ skuddaar = False
 spotprisfil = 'Spotpriser.xlsx'
 
 def bestem_prissatser(prissats_fil,type_kunde,mva):
-    kap_sats = pd.read_excel(prissats_fil,sheet_name=type_kunde)
+    nettleie_fil = pd.read_excel(prissats_fil,sheet_name=type_kunde)
     
     if mva == False:
-        energi = kap_sats.iloc[0,6]
-        reduksjon_energi = kap_sats.iloc[1,6]
-        fast_avgift = kap_sats.iloc[2,6]
+        energi = nettleie_fil.iloc[0,6]
+        reduksjon_energi = nettleie_fil.iloc[1,6]
+        fast_avgift = nettleie_fil.iloc[2,6]
+        kap_sats = nettleie_fil.iloc[:,4]
     else:
-        energi = kap_sats.iloc[0,7]
-        reduksjon_energi = kap_sats.iloc[1,7]
-        fast_avgift = kap_sats.iloc[2,7]
+        energi = nettleie_fil.iloc[0,7]
+        reduksjon_energi = nettleie_fil.iloc[1,7]
+        fast_avgift = nettleie_fil.iloc[2,7]
+        kap_sats = nettleie_fil.iloc[:,3]
 
-    starttid_reduksjon = kap_sats.iloc[0,10]                     # Klokkeslett for start av reduksjon i energileddpris
-    sluttid_reduksjon = kap_sats.iloc[1,10]
-    helg_spm = kap_sats.iloc[2,10]
+    max_kW_kap_sats = nettleie_fil.iloc[:,2]
+    starttid_reduksjon = nettleie_fil.iloc[0,10]                     # Klokkeslett for start av reduksjon i energileddpris
+    sluttid_reduksjon = nettleie_fil.iloc[1,10]
+    helg_spm = nettleie_fil.iloc[2,10]
     if helg_spm == 'Ja':
         helgereduksjon = True
     elif helg_spm == 'Nei':
         helgereduksjon = False
-    
-    max_kW_kap_sats = kap_sats.iloc[:,2]
-    kap_sats = kap_sats.iloc[:,3]
     
     return max_kW_kap_sats,kap_sats,energi,reduksjon_energi,starttid_reduksjon,sluttid_reduksjon,fast_avgift,helgereduksjon
 
@@ -274,7 +274,7 @@ def spotpris(konst_pris,spotprisfil,spotprisfil_aar,sone,paaslag,forb,dager_per_
 
 def nettleie_storre_naring(forb,dager_per_mnd):
 
-    kap_sats = pd.read_excel(prissats_fil,sheet_name=type_kunde)
+    nettleie_fil = pd.read_excel(prissats_fil,sheet_name=type_kunde)
     fastledd_mnd = np.zeros(12)
     energiledd_mnd = np.zeros(12)
     fond_avgift_mnd = np.zeros(12)
@@ -284,9 +284,9 @@ def nettleie_storre_naring(forb,dager_per_mnd):
     offentlig_time = []
     kol = 1
 
-    fastledd_time = [kap_sats.iloc[0,kol]/(np.sum(dager_per_mnd)*24)] * (np.sum(dager_per_mnd)*24)
-    fond_avgift_time = [kap_sats.iloc[10,kol]/(np.sum(dager_per_mnd)*24)] * (np.sum(dager_per_mnd)*24)
-    energiledd_time = (kap_sats.iloc[2,kol]/100)*forb           # kr
+    fastledd_time = [nettleie_fil.iloc[0,kol]/(np.sum(dager_per_mnd)*24)] * (np.sum(dager_per_mnd)*24)
+    fond_avgift_time = [nettleie_fil.iloc[10,kol]/(np.sum(dager_per_mnd)*24)] * (np.sum(dager_per_mnd)*24)
+    energiledd_time = (nettleie_fil.iloc[2,kol]/100)*forb           # kr
 
     forrige = 0
     for i in range(0,len(dager_per_mnd)):
@@ -294,23 +294,23 @@ def nettleie_storre_naring(forb,dager_per_mnd):
         energiledd_mnd[i] = np.sum(energiledd_time[forrige:forrige+dager_per_mnd[i]*24])
         forrige = forrige + dager_per_mnd[i]*24
 
-        fastledd_mnd[i] = (kap_sats.iloc[0,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]
-        fond_avgift_mnd[i] = (kap_sats.iloc[10,kol]/np.sum(dager_per_mnd))*dager_per_mnd[i]
+        fastledd_mnd[i] = (nettleie_fil.iloc[0,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]
+        fond_avgift_mnd[i] = (nettleie_fil.iloc[10,kol]/np.sum(dager_per_mnd))*dager_per_mnd[i]
         
 
         if 3 <= i <=8: 
-            kapledd_time = kapledd_time + ([((kap_sats.iloc[5,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
-            kapledd_mnd[i] = np.sum([((kap_sats.iloc[5,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
+            kapledd_time = kapledd_time + ([((nettleie_fil.iloc[5,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
+            kapledd_mnd[i] = np.sum([((nettleie_fil.iloc[5,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
         else:
-            kapledd_time = kapledd_time + ([((kap_sats.iloc[3,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
-            kapledd_mnd[i] = np.sum([((kap_sats.iloc[3,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
+            kapledd_time = kapledd_time + ([((nettleie_fil.iloc[3,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
+            kapledd_mnd[i] = np.sum([((nettleie_fil.iloc[3,kol]/(np.sum(dager_per_mnd)))*dager_per_mnd[i]*np.max(mnd_forb))/(dager_per_mnd[i]*24)] * dager_per_mnd[i]*24)
 
         if i <=2:
-            offentlig_time = offentlig_time + [kap_sats.iloc[7,kol]/100*mnd_forb]
-            offentlig_mnd[i] = np.sum([kap_sats.iloc[7,kol]/100*mnd_forb])
+            offentlig_time = offentlig_time + [nettleie_fil.iloc[7,kol]/100*mnd_forb]
+            offentlig_mnd[i] = np.sum([nettleie_fil.iloc[7,kol]/100*mnd_forb])
         else:
-            offentlig_time = offentlig_time + [kap_sats.iloc[8,kol]/100*mnd_forb]
-            offentlig_mnd[i] = np.sum([kap_sats.iloc[8,kol]/100*mnd_forb])
+            offentlig_time = offentlig_time + [nettleie_fil.iloc[8,kol]/100*mnd_forb]
+            offentlig_mnd[i] = np.sum([nettleie_fil.iloc[8,kol]/100*mnd_forb])
     
     #kapledd_time = [item for sublist in kapledd_time for item in sublist]
     #kapledd_time = np.array(kapledd_time)
@@ -328,7 +328,7 @@ def hele_strompris(timesforbruksfil,konst_pris,prissats_fil,spotprisfil,spotpris
     if konst_pris == False:
         if type_kunde == 'Større næringskunde':
             [energiledd_time,kapledd_time,offentlig_time,fastledd_time,fastledd_mnd,energiledd_time,energiledd_mnd,kapledd_time,kapledd_mnd,offentlig_time,offentlig_mnd,fond_avgift_time,fond_avgift_mnd
-             ] = nettleie_storre_naring(forb,dager_per_mnd)
+            ] = nettleie_storre_naring(forb,dager_per_mnd)
             tot_nettleie_time = fastledd_time+energiledd_time+kapledd_time+offentlig_time+fond_avgift_time
             tot_nettleie_mnd = fastledd_mnd+energiledd_mnd+kapledd_mnd+offentlig_mnd+fond_avgift_mnd
         
@@ -404,7 +404,7 @@ def plot_resultater(energiledd_time,kapledd_time,offentlig_time,forb,tot_nettlei
         st.metric('Gjennomsnittlig energikostnad per kWh',f"{round(tot_strompris_aar/tot_forb,3)} kr/kWh")
 
 
-[energiledd_time,kapledd_time,offentlig_time,tot_nettleie_mnd,spot_mnd,tot_nettleie_time,spot_time,forb
- ] = hele_strompris(FORBRUKSFIL,konst_pris,prissats_fil,spotprisfil,spotprisfil_aar,sone,paaslag,type_kunde,mva,skuddaar)
-plot_resultater(energiledd_time,kapledd_time,offentlig_time,forb,tot_nettleie_mnd,spot_mnd,tot_nettleie_time,spot_time,type_kunde,sone)
+if FORBRUKSFIL and (prissats_fil or konst_pris):
+    [energiledd_time,kapledd_time,offentlig_time,tot_nettleie_mnd,spot_mnd,tot_nettleie_time,spot_time,forb] = hele_strompris(FORBRUKSFIL,konst_pris,prissats_fil,spotprisfil,spotprisfil_aar,sone,paaslag,type_kunde,mva,skuddaar)
+    plot_resultater(energiledd_time,kapledd_time,offentlig_time,forb,tot_nettleie_mnd,spot_mnd,tot_nettleie_time,spot_time,type_kunde,sone)
 
