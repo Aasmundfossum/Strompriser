@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
 import datetime as datetime
 import plotly.express as px
-from plotly import graph_objects as go
+#from plotly import graph_objects as go
 
 st.set_page_config(page_title="Strømpriskalk", page_icon="🧮")
 
@@ -87,7 +86,7 @@ class Strompriskalk:
                 else:
                     kol0 = 7
                     kol00 = 3
-                self.energi = prissats_fil.iloc[0,kol0]
+                self.energi = prissats_fil.iloc[0,kol0]                     #Energiledd inkl. fba.
                 self.reduksjon_energi = prissats_fil.iloc[1,kol0]
                 self.fast_avgift = prissats_fil.iloc[2,kol0]
                 self.kap_sats = prissats_fil.iloc[:,kol00]
@@ -117,7 +116,6 @@ class Strompriskalk:
                 self.fastledd_sats = prissats_fil.iloc[0,kol]*mva_faktor
                 self.sond_avgift_sats = prissats_fil.iloc[10,kol]*mva_faktor
 
-                
             self.prissats_fil = prissats_fil
 
 
@@ -270,7 +268,7 @@ class Strompriskalk:
         # Regner ut ekstra offentlige avgifter i nettleien basert på satsen som er lest av.
         # Hvis større næringskunde: Forbruksavgift (da denne ikke er inkludert noe annet sted) kr/kWh
         # Hvis mindre næringskunde: Avlest sats på fast avgift (satt til 0)
-        # Hvis enkelthusholdning: Avlest sats på fast avgift (enovaavgift) kr/kWh
+        # Hvis privatkunde: Avlest sats på fast avgift (enovaavgift) kr/kWh
         # Returnerer offentlige avgifter med timesoppløsning og månedsoppløsning
         if self.konst_pris == False:
             if self.type_kunde == 'Større næringskunde':
@@ -429,7 +427,7 @@ class Strompriskalk:
                 timesnettleie_til_plot = pd.DataFrame({'Energiledd':self.energiledd_time, 'Effektledd':self.kapledd_time, 'Forbruksavgift':self.offentlig_time, 'Fastledd':self.fastledd_time, 'Avgift til energifondet':self.fond_avgift_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f', '#b7dc8f', '#FAE3B4']
             else:
-                timesnettleie_til_plot = pd.DataFrame({'Energiledd':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Offentlige avgifter':self.offentlig_time})
+                timesnettleie_til_plot = pd.DataFrame({'Energiledd inkl. fba.':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Andre offentlige avgifter':self.offentlig_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f']
 
             fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+' med gitt forbruk '+mva_str, color_discrete_sequence=plot_farger)
@@ -462,7 +460,6 @@ class Strompriskalk:
             st.metric('Total energikostnad dette året:',f"{round(self.tot_strompris_aar)} kr")
         with c3:
             st.metric('Gjennomsnittlig energikostnad per kWh',f"{round(self.tot_strompris_aar/self.tot_forb,3)} kr/kWh")
-
         
 
 
