@@ -10,6 +10,7 @@ st.set_page_config(page_title="Strømpriskalk", page_icon="🧮")
 with open("styles/main.css") as f:
     st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
 
+####
 
 class Strompriskalk:
     def __init__(self):
@@ -22,11 +23,12 @@ class Strompriskalk:
             self.bestem_prissatser()
             self.fiks_forbruksfil()
             self.dager_i_hver_mnd()
+            self.spotpris()
             self.energiledd()
             self.kapasitetsledd()
             self.offentlige_avgifter()
             self.nettleie_hvis_konstant_sats()
-            self.spotpris()
+            #self.spotpris()
             self.ekstra_nettleie_storre_naring()
             self.hele_nettleie()
             self.totaler()
@@ -39,9 +41,10 @@ class Strompriskalk:
         st.header('Inndata')
 
         st.subheader('Forbruksdata')
-        self.forbruksfil = st.file_uploader(label='Timesdata for strømforbruk i enhet kW. Lenge 8760x1 ved normalår og 8784x1 ved skuddår.',type='xlsx')
+        self.forbruksfil = st.file_uploader(label='Timesdata for strømforbruk i enhet kW med lengde 8760x1 og én tittel-rad.',type='xlsx')
 
         st.subheader('Nettleiesatser')
+        self.plusskunde_modell = st.selectbox(label='Modell for håndtering av negativt forbruk (ikke helt ferdig)', options=['BKKs modell', 'Ingen'], index=0)
         self.konst_pris = st.checkbox(label='Bruk konstante verdier på nettleie og spotpris')
 
         if self.konst_pris == True:
@@ -61,7 +64,7 @@ class Strompriskalk:
             with c1:
                 self.sone = st.selectbox(label='Sone for spotpris',options=['NO1','NO2','NO3','NO4','NO5'],index=0)
             with c2:
-                self.spotprisfil_aar = st.selectbox(label='Årstall for spotpriser',options=['2022', '2021', '2020'],index=0)
+                self.spotprisfil_aar = st.selectbox(label='Årstall for spotpriser',options=['2023', '2022', '2021', '2020'],index=0)
             with c3:
                 self.paaslag = st.number_input(label='Påslag på spotpris (kr/kWh)', value=0.05, step=0.01)
             
@@ -69,7 +72,7 @@ class Strompriskalk:
             c1, c2, c3 = st.columns(3)
             with c1:
                 self.mva = st.checkbox(label='Priser inkludert mva.')
-            
+
         self.skuddaar = False
         self.spotprisfil = 'Spotpriser.xlsx'
 
@@ -108,13 +111,14 @@ class Strompriskalk:
                 elif self.mva == True:
                     mva_faktor = 1.25
                 
-                self.energi_storre_naring = prissats_fil.iloc[2,kol]*mva_faktor
-                self.kap_sats_apr_sept = prissats_fil.iloc[5,kol]*mva_faktor
-                self.kap_sats_okt_mar = prissats_fil.iloc[3,kol]*mva_faktor
-                self.avgift_sats_jan_mar = prissats_fil.iloc[7,kol]*mva_faktor
-                self.avgift_sats_apr_des = prissats_fil.iloc[8,kol]*mva_faktor
+                self.energiledd_storre_naring_sommer = prissats_fil.iloc[2,kol]*mva_faktor
+                self.energiledd_storre_naring_vinter = prissats_fil.iloc[3,kol]*mva_faktor
+                self.kap_sats_apr_sept = prissats_fil.iloc[6,kol]*mva_faktor
+                self.kap_sats_okt_mar = prissats_fil.iloc[4,kol]*mva_faktor
+                self.avgift_sats_jan_mar = prissats_fil.iloc[8,kol]*mva_faktor
+                self.avgift_sats_apr_des = prissats_fil.iloc[9,kol]*mva_faktor
                 self.fastledd_sats = prissats_fil.iloc[0,kol]*mva_faktor
-                self.sond_avgift_sats = prissats_fil.iloc[10,kol]*mva_faktor
+                self.sond_avgift_sats = prissats_fil.iloc[11,kol]*mva_faktor
 
             self.prissats_fil = prissats_fil
 
@@ -133,7 +137,39 @@ class Strompriskalk:
             self.dager_per_mnd = np.array([31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
         else:
             self.dager_per_mnd = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+
+    def spotpris(self):
+        # Hvis ikke konstante prisverdier: Leser av riktig kolonne (sone og år) i spotpristabell
+        # Regner ut spotpris med timesoppløsning og månedsoppløsning. Hvis ikke konstante prisverdier tas hensyn til mva og påslag
+        if self.konst_pris == False:
+            spot_sats = pd.read_excel(self.spotprisfil,sheet_name=self.spotprisfil_aar)
+            spot_sats = spot_sats.loc[:,self.sone]+self.paaslag
+            if self.mva == True:
+                spot_time = self.forb*spot_sats
+            elif self.mva == False:
+                spot_time = self.forb*(spot_sats/1.25)
+            spot_mnd = np.zeros(12)
+            forrige = 0
+            for k in range(0,len(self.dager_per_mnd)):
+                spot_mnd[k] = np.sum(spot_time[forrige:forrige+self.dager_per_mnd[k]*24])
+                forrige = forrige + self.dager_per_mnd[k]*24
+            
+            self.spot_time = spot_time
+            self.spot_mnd = spot_mnd
         
+        elif self.konst_pris == True:
+            konst_spot_mnd = np.zeros(12)
+            spot_sats = self.konst_spot
+            forrige = 0
+            for i in range(0,len(self.dager_per_mnd)):
+                konst_spot_mnd[i] = np.sum(self.forb[forrige:forrige+self.dager_per_mnd[i]*24])*spot_sats
+                forrige = forrige + self.dager_per_mnd[i]*24
+            konst_spot_time = self.forb*spot_sats
+
+            self.spot_time = konst_spot_time
+            self.spot_mnd = konst_spot_mnd
+        self.spot_sats = np.array(spot_sats)
+
     def energiledd(self):
         # Kun hvis ikke konstante prisverdier: 
         # Regner ut energiledd til nettleien basert på satsen som er lest av. 
@@ -141,13 +177,29 @@ class Strompriskalk:
         # Returnerer energiledd med timesoppløsning og månedsoppløsning
         if self.konst_pris == False:
             energiledd_mnd = np.zeros(12)
+            energiledd_time = []
             
             if self.type_kunde == 'Større næringskunde':
-                energiledd_time = (self.energi_storre_naring/100)*self.forb           # kr
-
                 forrige = 0
                 for i in range(0,len(self.dager_per_mnd)):
-                    energiledd_mnd[i] = np.sum(energiledd_time[forrige:forrige+self.dager_per_mnd[i]*24])
+                    if 3 <= i <=8: 
+                        energiledd_sats = self.energiledd_storre_naring_sommer
+                    else:
+                        energiledd_sats = self.energiledd_storre_naring_vinter
+
+                    forb_time_denne_mnd = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
+                    energiledd_time_denne_mnd = (energiledd_sats/100)*forb_time_denne_mnd
+                    spot_time_denne_mnd = self.spot_sats[forrige:forrige+self.dager_per_mnd[i]*24]
+                    for j in range(0,len(energiledd_time_denne_mnd)):
+                        if energiledd_time_denne_mnd[j] < 0:
+                            if self.plusskunde_modell == 'BKKs modell':
+                                energiledd_time_denne_mnd[j] = 0.04*spot_time_denne_mnd[j]*forb_time_denne_mnd[j]           # "(...), betaler BKK 4 prosent av spotpris til plusskundene."
+                            else:
+                                energiledd_time_denne_mnd[j] = 0
+                    
+                    energiledd_time = energiledd_time + list((energiledd_time_denne_mnd))
+                    
+                    energiledd_mnd[i] = np.sum(energiledd_time_denne_mnd)
                     forrige = forrige + self.dager_per_mnd[i]*24
 
             else:
@@ -164,7 +216,9 @@ class Strompriskalk:
                         if dato.weekday() >= 5:         
                             dagtype="helg"
                         
-                        if year == 2022:
+                        if year == 2023:
+                            norske_helligdager = [(1, 1), (4, 6), (4, 7), (4, 10), (5, 1), (5, 17), (5, 18), (5, 29), (12, 25), (12, 26),]
+                        elif year == 2022:
                             norske_helligdager = [(1, 1), (4, 14), (4, 15), (4, 17), (4, 18), (5, 1), (5, 17), (5, 26), (6, 5), (6, 6), (12, 25), (12, 26),]
                         elif year == 2021:
                             norske_helligdager = [(1, 1), (4, 1), (4, 2), (4, 4), (4, 5), (5, 1), (5, 13), (5, 17), (5, 23), (5, 24), (12, 25), (12, 26),]
@@ -173,7 +227,6 @@ class Strompriskalk:
                         
                         if (dato.month, dato.day) in norske_helligdager:
                             dagtype="helg"
-                    
                     
 
                     if dagtype == 'ukedag':
@@ -186,7 +239,6 @@ class Strompriskalk:
                         for j in range(0,len(dagsforb)):
                             energiledd_time[i-24+j]=dagsforb[j]*(self.energi-self.reduksjon_energi)
 
-
                 for j in range(0,len(self.forb)):                    #Setter energileddet lik 0 i timer med 0 forbruk
                     if self.forb[j] == 0:
                         energiledd_time[j] = 0
@@ -196,7 +248,7 @@ class Strompriskalk:
                     energiledd_mnd[k] = np.sum(energiledd_time[forrige:forrige+self.dager_per_mnd[k]*24])
                     forrige = forrige + self.dager_per_mnd[k]*24
             
-            self.energiledd_time = energiledd_time
+            self.energiledd_time = np.array(energiledd_time)
             self.energiledd_mnd = energiledd_mnd
 
 
@@ -221,6 +273,9 @@ class Strompriskalk:
                         kap_sats = self.kap_sats_okt_mar
                     
                     kapledd_time_denne_mnd = [((kap_sats/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]*np.max(mnd_forb))/(self.dager_per_mnd[i]*24)] * self.dager_per_mnd[i]*24
+                    for j in range(0,len(kapledd_time_denne_mnd)):
+                        if kapledd_time_denne_mnd[j] < 0:
+                            kapledd_time_denne_mnd[j] = 0
                     kapledd_time = kapledd_time + (kapledd_time_denne_mnd)
                     kapledd_mnd[i] = np.sum(kapledd_time_denne_mnd)
 
@@ -260,7 +315,7 @@ class Strompriskalk:
             
             kapledd_time = np.array(kapledd_time)
 
-            self.kapledd_time = kapledd_time
+            self.kapledd_time = np.array(kapledd_time)
             self.kapledd_mnd = kapledd_mnd
 
     def offentlige_avgifter(self):
@@ -288,7 +343,12 @@ class Strompriskalk:
 
                 offentlig_time = [item for sublist in offentlig_time for item in sublist]
                 offentlig_time = np.array(offentlig_time)
-
+                for j in range(0,len(offentlig_time)):
+                    if offentlig_time[j] < 0:
+                        offentlig_time[j] = 0
+                for k in range(0,len(offentlig_mnd)):
+                    if offentlig_mnd[k] < 0:
+                        offentlig_mnd[k] = 0
             else:
                 offentlig_mnd = np.zeros(12)
                 forrige = 0
@@ -315,40 +375,10 @@ class Strompriskalk:
             self.konst_nettleie_time = konst_nettleie_time
             self.konst_nettleie_mnd = konst_nettleie_mnd
 
-    def spotpris(self):
-        # Hvis ikke konstante prisverdier: Leser av riktig kolonne (sone og år) i spotpristabell
-        # Regner ut spotpris med timesoppløsning og månedsoppløsning. Hvis ikke konstante prisverdier tas hensyn til mva og påslag
-        if self.konst_pris == False:
-            spot_sats = pd.read_excel(self.spotprisfil,sheet_name=self.spotprisfil_aar)
-            spot_sats = spot_sats.loc[:,self.sone]+self.paaslag
-            if self.mva == True:
-                spot_time = self.forb*spot_sats
-            elif self.mva == False:
-                spot_time = self.forb*(spot_sats/1.25)
-            spot_mnd = np.zeros(12)
-            forrige = 0
-            for k in range(0,len(self.dager_per_mnd)):
-                spot_mnd[k] = np.sum(spot_time[forrige:forrige+self.dager_per_mnd[k]*24])
-                forrige = forrige + self.dager_per_mnd[k]*24
-            
-            self.spot_time = spot_time
-            self.spot_mnd = spot_mnd
-        
-        elif self.konst_pris == True:
-            konst_spot_mnd = np.zeros(12)
-            forrige = 0
-            for i in range(0,len(self.dager_per_mnd)):
-                konst_spot_mnd[i] = np.sum(self.forb[forrige:forrige+self.dager_per_mnd[i]*24])*self.konst_spot
-                forrige = forrige + self.dager_per_mnd[i]*24
-            konst_spot_time = self.forb*self.konst_spot
-
-            self.spot_time = konst_spot_time
-            self.spot_mnd = konst_spot_mnd
-
     def ekstra_nettleie_storre_naring(self):
         # Kun hvis ikke konstante prisverdier:
         # Leser av og Regner ut ekstra deler av nettleien som kun finnes for større næringskunder: Fastledd og næringsavgift til energifondet
-        # Fordeler denne kun mellom timene som har >0 forbruk
+        # Fordeler denne kun mellom alle årets timer
         if self.konst_pris == False:
             if self.type_kunde == 'Større næringskunde':
                 fastledd_mnd = np.zeros(12)
@@ -359,28 +389,14 @@ class Strompriskalk:
                 forrige = 0
                 for i in range(0,len(self.dager_per_mnd)):
                     mnd_forb = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
-                    forrige = forrige + self.dager_per_mnd[i]*24
-                    
-                    if np.sum(mnd_forb) == 0:
-                        fastledd_mnd[i] = 0
-                        fond_avgift_mnd[i] = 0
-                    else:
-                        fastledd_mnd[i] = (self.fastledd_sats/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]
-                        fond_avgift_mnd[i] = (self.sond_avgift_sats/np.sum(self.dager_per_mnd))*self.dager_per_mnd[i]
+                    forrige = forrige + self.dager_per_mnd[i]*24  
 
-                    # Fordeler de faste avgiftene likt mellom de timene i måneden som har >0 forbruk:
-                    ant_timer_med_forb = 0
-                    for l in range(0,len(mnd_forb)):
-                        if mnd_forb[l] != 0:
-                            ant_timer_med_forb = ant_timer_med_forb+1
+                    fastledd_mnd[i] = (self.fastledd_sats/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]
+                    fond_avgift_mnd[i] = (self.sond_avgift_sats/np.sum(self.dager_per_mnd))*self.dager_per_mnd[i]
 
                     for m in range(0,len(mnd_forb)):
-                        if mnd_forb[m] != 0:
-                            fastledd_time = fastledd_time + [fastledd_mnd[i]/(ant_timer_med_forb)]
-                            fond_avgift_time = fond_avgift_time + [fond_avgift_mnd[i]/(ant_timer_med_forb)]
-                        elif mnd_forb[m] == 0:
-                            fastledd_time = fastledd_time + [0]
-                            fond_avgift_time = fond_avgift_time + [0]
+                        fastledd_time = fastledd_time + [fastledd_mnd[i]/(len(mnd_forb))]
+                        fond_avgift_time = fond_avgift_time + [fond_avgift_mnd[i]/(len(mnd_forb))]
 
                 self.fastledd_time = fastledd_time
                 self.fastledd_mnd = fastledd_mnd
@@ -401,7 +417,7 @@ class Strompriskalk:
         elif self.konst_pris == True:
             tot_nettleie_time = self.konst_nettleie_time
             tot_nettleie_mnd = self.konst_nettleie_mnd
-            self.plot_tittel = 'Strømpris med gitt forbruk, nettleie på '+str(self.konst_nettleie)+' kr/kWh og spotpris på '+str(self.konst_spot)+' kr/kWh'
+            self.plot_tittel = 'Strømpris , nettleie på '+str(self.konst_nettleie)+' kr/kWh og spotpris på '+str(self.konst_spot)+' kr/kWh'
 
         self.tot_nettleie_time = tot_nettleie_time
         self.tot_nettleie_mnd = tot_nettleie_mnd
@@ -417,6 +433,7 @@ class Strompriskalk:
         # Skriver ut og plotter alle resultater til streamlit-nettsiden
         # Hvilke ting som plottes i figurene er avhengig av valg i input.
         st.header('Resultater')
+
         if self.konst_pris == False:
             if self.mva == True:
                 mva_str = 'inkl. mva.'
@@ -430,19 +447,19 @@ class Strompriskalk:
                 timesnettleie_til_plot = pd.DataFrame({'Energiledd inkl. fba.':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Andre offentlige avgifter':self.offentlig_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f']
 
-            fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+' med gitt forbruk '+mva_str, color_discrete_sequence=plot_farger)
-            fig1.update_layout(xaxis_title='Timer', yaxis_title='Timespris med gitt forbruk (kr)',legend_title=None)
+            fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+'  '+mva_str, color_discrete_sequence=plot_farger)
+            fig1.update_layout(xaxis_title='Timer', yaxis_title='Timespris  (kr)',legend_title=None)
             st.plotly_chart(fig1)  
             
-            plot_tittel = 'Strømpris for '+self.type_kunde.lower()+' med gitt forbruk i '+self.sone+' basert på spotpriser i '+self.spotprisfil_aar+' '+mva_str
+            plot_tittel = 'Strømpris for '+self.type_kunde.lower()+'  i '+self.sone+' basert på spotpriser i '+self.spotprisfil_aar+' '+mva_str
         
         elif self.konst_pris == True:
-            plot_tittel = 'Strømpris med gitt forbruk og gitte satser på nettleie og spotpris'
+            plot_tittel = 'Strømpris  og gitte satser på nettleie og spotpris'
         
         # Plotter nettleie og strømpris med timesoppløsning
         timestrompriser_til_plot = pd.DataFrame({"Total strømpris" : self.tot_strompris_time, "Spotpris" : self.spot_time, "Nettleie" : self.tot_nettleie_time})
         fig2 = px.line(timestrompriser_til_plot, title=plot_tittel, color_discrete_sequence=['#1d3c34', '#FFC358', '#48a23f'])
-        fig2.update_layout(xaxis_title='Timer', yaxis_title='Timespris med gitt forbruk (kr)',legend_title=None)
+        fig2.update_layout(xaxis_title='Timer', yaxis_title='Timespris  (kr)',legend_title=None)
         st.plotly_chart(fig2)
 
 
@@ -450,21 +467,19 @@ class Strompriskalk:
         mnd_akse = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember']
         maanedsstrompriser_til_plot = pd.DataFrame({'Måned':mnd_akse,'Spotpris':self.spot_mnd,'Nettleie':self.tot_nettleie_mnd})
         fig5 = px.bar(maanedsstrompriser_til_plot,x='Måned',y=['Spotpris','Nettleie'],title=plot_tittel, color_discrete_sequence=['#FFC358', '#48a23f'])
-        fig5.update_layout(yaxis_title='Månedspris med gitt forbruk (kr)',legend_title=None)
+        fig5.update_layout(yaxis_title='Månedspris  (kr)',legend_title=None)
         st.plotly_chart(fig5)
 
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric('Totalt forbruk:',f"{round(self.tot_forb)} kWh")
+            st.metric('Totalt forbruk:',f'{"{:,}".format(round(self.tot_forb)).replace(",", " ")} kWh')
         with c2:
-            st.metric('Total energikostnad dette året:',f"{round(self.tot_strompris_aar)} kr")
+            st.metric(f'Total energikostnad i {self.spotprisfil_aar}:',f'{"{:,}".format(round(self.tot_strompris_aar)).replace(",", " ")} kr')
         with c3:
             st.metric('Gjennomsnittlig energikostnad per kWh',f"{round(self.tot_strompris_aar/self.tot_forb,3)} kr/kWh")
         
 
-
 Strompriskalk().regn_ut_strompris()
-
 
 # Mulige forbedringer/tillegg:
 # Forbruksavgift er nå inkludert i energiledd for privatkunder og mindre næringskunder, men den bør kanskje skilles ut og plasseres i kategorien "offentlige avgifter" sammen med Enovaavgift.
