@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import datetime as datetime
 import plotly.express as px
+from io import BytesIO
 #from plotly import graph_objects as go
 
 st.set_page_config(page_title="Strømpriskalk", page_icon="🧮")
@@ -33,6 +34,7 @@ class Strompriskalk:
             self.hele_nettleie()
             self.totaler()
             self.plot_resultater()
+            self.last_ned_resultater()
 
     def streamlit_input(self):
         # Viser alle input-felt i streamlit
@@ -125,7 +127,8 @@ class Strompriskalk:
 
     def fiks_forbruksfil(self):
         # Gjør om timesforbruket i den opplastede filen til ønsket format
-        forb = pd.read_excel(self.forbruksfil,sheet_name='Sheet1')
+        #forb = pd.read_excel(self.forbruksfil,sheet_name='Sheet1')
+        forb = pd.read_excel(self.forbruksfil)
         forb = forb.to_numpy()
         forb = np.swapaxes(forb,0,1)
         forb = forb[0,:]
@@ -477,6 +480,49 @@ class Strompriskalk:
             st.metric(f'Total energikostnad i {self.spotprisfil_aar}:',f'{"{:,}".format(round(self.tot_strompris_aar)).replace(",", " ")} kr')
         with c3:
             st.metric('Gjennomsnittlig energikostnad per kWh',f"{round(self.tot_strompris_aar/self.tot_forb,3)} kr/kWh")
+
+        self.timestrompriser_til_plot = timestrompriser_til_plot
+        self.maanedsstrompriser_til_plot = maanedsstrompriser_til_plot
+
+    def last_ned_resultater(self):
+        @st.cache_data
+        def convert_df_to_excel(df):
+            # Convert the DataFrame to an Excel file in-memory
+            excel_file = BytesIO()
+            with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+                df.to_excel(writer, index=True, sheet_name="Sheet1")
+                #writer.save()
+            excel_file.seek(0)  # Set cursor to the beginning of the file
+            return excel_file
+
+        @st.fragment
+        def download_button_hour():
+            st.download_button(
+                label="Last ned timesdata som Excel-fil",
+                data=timesopplost_til_excel,
+                file_name="Strømpriser_timesoppløst.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        @st.fragment
+        def download_button_month():
+            st.download_button(
+                label="Last ned månedsdata som Excel-fil",
+                data=maanedsopplost_til_excel,
+                file_name="Strømpriser_månedsoppløst.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        # Replace final_dataframe_file with the Excel version
+        timesopplost_til_excel = convert_df_to_excel(self.timestrompriser_til_plot)
+        maanedsopplost_til_excel = convert_df_to_excel(self.maanedsstrompriser_til_plot)
+
+        st.markdown('---')
+        c1, c2 = st.columns(2)
+        with c1:
+            download_button_hour()
+        with c2:
+            download_button_month()
         
 
 Strompriskalk().regn_ut_strompris()
