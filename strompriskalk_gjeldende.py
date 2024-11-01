@@ -46,9 +46,7 @@ class Strompriskalk:
         self.forbruksfil = st.file_uploader(label='Timesdata for strømforbruk i enhet kW med lengde 8760x1 og én tittel-rad.',type='xlsx')
 
         st.subheader('Nettleiesatser')
-        self.plusskunde_modell = st.selectbox(label='Modell for håndtering av negativt forbruk (ikke helt ferdig)', options=['BKKs modell', 'Ingen'], index=0)
         self.konst_pris = st.checkbox(label='Bruk konstante verdier på nettleie og spotpris')
-
         if self.konst_pris == True:
             c1, c2 = st.columns(2)
             with c1:
@@ -59,7 +57,10 @@ class Strompriskalk:
             self.prissats_filnavn = None
 
         elif self.konst_pris == False:
-            self.prissats_filnavn = st.file_uploader(label='Fil på riktig format som inneholder prissatser for kapasitetsledd, energiledd og offentlige avgifter',type='xlsx')
+            #self.prissats_filnavn = st.file_uploader(label='Fil på riktig format som inneholder prissatser for kapasitetsledd, energiledd og offentlige avgifter',type='xlsx')
+            self.nettleieselskap = st.selectbox('Velg nettleieselskap', ['BKK', 'Glitre', 'Lede', 'Tensio'])
+            self.prissats_filnavn = f'Prissatser_nettleie_{self.nettleieselskap}.xlsx'
+            
             self.type_kunde = st.selectbox(label='Type strømkunde',options=['Privatkunde', 'Mindre næringskunde', 'Større næringskunde'],index=0)
             st.subheader('Spotpris')
             c1, c2, c3 = st.columns(3)
@@ -74,14 +75,20 @@ class Strompriskalk:
             c1, c2, c3 = st.columns(3)
             with c1:
                 self.mva = st.checkbox(label='Priser inkludert mva.')
+                if self.mva == False:
+                    mva_faktor = 1
+                elif self.mva == True:
+                    mva_faktor = 1.25
 
+        self.plusskunde_modell = st.selectbox(label='Modell for håndtering av negativt forbruk (ikke helt ferdig)', options=['BKKs modell', 'Ingen'], index=0)
         self.skuddaar = False
         self.spotprisfil = 'Spotpriser.xlsx'
+        self.mva_faktor = mva_faktor
 
     def bestem_prissatser(self):
         #Leser av prissatser for nettleie fra excel-filen som er lastet opp. Skjer kun hvis man ikke velger konstant pris
         if self.konst_pris == False:
-            prissats_fil = pd.read_excel(self.prissats_filnavn,sheet_name=self.type_kunde)
+            prissats_fil = pd.read_excel(self.prissats_filnavn, sheet_name=self.type_kunde)
             
             if self.type_kunde != 'Større næringskunde':
                 
@@ -108,19 +115,14 @@ class Strompriskalk:
 
             else:
                 kol = 1
-                if self.mva == False:
-                    mva_faktor = 1
-                elif self.mva == True:
-                    mva_faktor = 1.25
-                
-                self.energiledd_storre_naring_sommer = prissats_fil.iloc[2,kol]*mva_faktor
-                self.energiledd_storre_naring_vinter = prissats_fil.iloc[3,kol]*mva_faktor
-                self.kap_sats_apr_sept = prissats_fil.iloc[6,kol]*mva_faktor
-                self.kap_sats_okt_mar = prissats_fil.iloc[4,kol]*mva_faktor
-                self.avgift_sats_jan_mar = prissats_fil.iloc[8,kol]*mva_faktor
-                self.avgift_sats_apr_des = prissats_fil.iloc[9,kol]*mva_faktor
-                self.fastledd_sats = prissats_fil.iloc[0,kol]*mva_faktor
-                self.sond_avgift_sats = prissats_fil.iloc[11,kol]*mva_faktor
+                self.energiledd_storre_naring_sommer = prissats_fil.iloc[2,kol]*self.mva_faktor
+                self.energiledd_storre_naring_vinter = prissats_fil.iloc[3,kol]*self.mva_faktor
+                self.kap_sats_apr_sept = prissats_fil.iloc[6,kol]*self.mva_faktor
+                self.kap_sats_okt_mar = prissats_fil.iloc[4,kol]*self.mva_faktor
+                self.avgift_sats_jan_mar = prissats_fil.iloc[8,kol]*self.mva_faktor
+                self.avgift_sats_apr_des = prissats_fil.iloc[9,kol]*self.mva_faktor
+                self.fastledd_sats = prissats_fil.iloc[0,kol]*self.mva_faktor
+                self.sond_avgift_sats = prissats_fil.iloc[11,kol]*self.mva_faktor
 
             self.prissats_fil = prissats_fil
 
@@ -147,10 +149,7 @@ class Strompriskalk:
         if self.konst_pris == False:
             spot_sats = pd.read_excel(self.spotprisfil,sheet_name=self.spotprisfil_aar)
             spot_sats = spot_sats.loc[:,self.sone]+self.paaslag
-            if self.mva == True:
-                spot_time = self.forb*spot_sats
-            elif self.mva == False:
-                spot_time = self.forb*(spot_sats/1.25)
+            spot_time = self.forb*(spot_sats/self.mva_faktor)
             spot_mnd = np.zeros(12)
             forrige = 0
             for k in range(0,len(self.dager_per_mnd)):
@@ -193,6 +192,7 @@ class Strompriskalk:
                     forb_time_denne_mnd = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
                     energiledd_time_denne_mnd = (energiledd_sats/100)*forb_time_denne_mnd
                     spot_time_denne_mnd = self.spot_sats[forrige:forrige+self.dager_per_mnd[i]*24]
+                    
                     for j in range(0,len(energiledd_time_denne_mnd)):
                         if energiledd_time_denne_mnd[j] < 0:
                             if self.plusskunde_modell == 'BKKs modell':
@@ -242,8 +242,8 @@ class Strompriskalk:
                         for j in range(0,len(dagsforb)):
                             energiledd_time[i-24+j]=dagsforb[j]*(self.energi-self.reduksjon_energi)
 
-                for j in range(0,len(self.forb)):                    #Setter energileddet lik 0 i timer med 0 forbruk
-                    if self.forb[j] == 0:
+                for j in range(0,len(self.forb)):                    #Setter energileddet lik 0 i timer med negativt
+                    if self.forb[j] < 0:
                         energiledd_time[j] = 0
 
                 forrige = 0
@@ -295,24 +295,13 @@ class Strompriskalk:
                     tre_hoyeste = max_per_dag_sort[-3:]
                     snitt_tre_hoyeste = np.mean(tre_hoyeste)
 
-                    if snitt_tre_hoyeste == 0:                  # Hvis det ikke brukes noe strøm en måned, skal kapledd være 0 denne måneden
-                        kapledd_mnd[i] = 0
-                    else:
-                        for k in range(0,len(self.max_kW_kap_sats)):
-                            if snitt_tre_hoyeste < self.max_kW_kap_sats[k]:
-                                break
-                        kapledd_mnd[i] = self.kap_sats[k]
-
-                    ant_timer_med_forb = 0
-                    for l in range(0,len(mnd_forb)):
-                        if mnd_forb[l] != 0:
-                            ant_timer_med_forb = ant_timer_med_forb+1
+                    for k in range(0,len(self.max_kW_kap_sats)):
+                        if snitt_tre_hoyeste < self.max_kW_kap_sats[k]:
+                            break
+                    kapledd_mnd[i] = self.kap_sats[k]
 
                     for m in range(0,len(mnd_forb)):
-                        if mnd_forb[m] != 0:
-                            kapledd_time = kapledd_time + [kapledd_mnd[i]/(ant_timer_med_forb)]
-                        elif mnd_forb[m] == 0:
-                            kapledd_time = kapledd_time + [0]
+                        kapledd_time = kapledd_time + [kapledd_mnd[i]/(len(mnd_forb))]          # Fordeler månedens kapasitetsledd (kr/mnd) utover alle månedens timer
 
                     forrige_mnd = forrige_mnd + self.dager_per_mnd[i]*24
             
@@ -352,14 +341,19 @@ class Strompriskalk:
                 for k in range(0,len(offentlig_mnd)):
                     if offentlig_mnd[k] < 0:
                         offentlig_mnd[k] = 0
-            else:
-                offentlig_mnd = np.zeros(12)
-                forrige = 0
-                for i in range(0,len(self.dager_per_mnd)):
-                    offentlig_mnd[i] = np.sum(self.forb[forrige:forrige+self.dager_per_mnd[i]*24])*self.fast_avgift
-                    forrige = forrige + self.dager_per_mnd[i]*24
+            else:            
                 offentlig_time = self.forb*self.fast_avgift
             
+                for i in range(0,len(offentlig_time)):
+                    if offentlig_time[i] < 0:
+                        offentlig_time[i] = 0
+
+                offentlig_mnd = np.zeros(12)    
+                forrige = 0
+                for k in range(0,len(self.dager_per_mnd)):
+                    offentlig_mnd[k] = np.sum(offentlig_time[forrige:forrige+self.dager_per_mnd[k]*24])
+                    forrige = forrige + self.dager_per_mnd[k]*24
+
             self.offentlig_time = offentlig_time
             self.offentlig_mnd = offentlig_mnd
 
@@ -450,7 +444,7 @@ class Strompriskalk:
                 timesnettleie_til_plot = pd.DataFrame({'Energiledd inkl. fba.':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Andre offentlige avgifter':self.offentlig_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f']
 
-            fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+'  '+mva_str, color_discrete_sequence=plot_farger)
+            fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+' '+mva_str, color_discrete_sequence=plot_farger)
             fig1.update_layout(xaxis_title='Timer', yaxis_title='Timespris  (kr)',legend_title=None)
             st.plotly_chart(fig1)  
             
