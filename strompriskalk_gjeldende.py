@@ -80,7 +80,6 @@ class Strompriskalk:
                 elif self.mva == True:
                     mva_faktor = 1.25
 
-        self.plusskunde_modell = st.selectbox(label='Modell for håndtering av negativt forbruk (ikke helt ferdig)', options=['BKKs modell', 'Ingen'], index=0)
         self.skuddaar = False
         self.spotprisfil = 'Spotpriser.xlsx'
         self.mva_faktor = mva_faktor
@@ -195,8 +194,10 @@ class Strompriskalk:
                     
                     for j in range(0,len(energiledd_time_denne_mnd)):
                         if energiledd_time_denne_mnd[j] < 0:
-                            if self.plusskunde_modell == 'BKKs modell':
+                            if self.nettleieselskap == 'BKK':
                                 energiledd_time_denne_mnd[j] = 0.04*spot_time_denne_mnd[j]*forb_time_denne_mnd[j]           # "(...), betaler BKK 4 prosent av spotpris til plusskundene."
+                            elif self.nettleieselskap == 'Glitre':
+                                energiledd_time[j] = (0.04/1.25)*self.mva_faktor*self.forb[j]                              # Som kunde i Glitre Nett vil du motta 4 øre inkludert MVA per kWh du leverer ut på strømnettet
                             else:
                                 energiledd_time_denne_mnd[j] = 0
                     
@@ -242,9 +243,15 @@ class Strompriskalk:
                         for j in range(0,len(dagsforb)):
                             energiledd_time[i-24+j]=dagsforb[j]*(self.energi-self.reduksjon_energi)
 
-                for j in range(0,len(self.forb)):                    #Setter energileddet lik 0 i timer med negativt
-                    if self.forb[j] < 0:
-                        energiledd_time[j] = 0
+                for j in range(0,len(energiledd_time)):
+                    if energiledd_time[j] < 0:
+                        if self.nettleieselskap == 'BKK':
+                            energiledd_time[j] = 0.04*self.spot_sats[j]*self.forb[j]           # "(...), betaler BKK 4 prosent av spotpris til plusskundene."
+                        elif self.nettleieselskap == 'Glitre':
+                            energiledd_time[j] = (0.04/1.25)*self.mva_faktor*self.forb[j]                              # Som kunde i Glitre Nett vil du motta 4 øre inkludert MVA per kWh du leverer ut på strømnettet
+                        else:
+                            energiledd_time[j] = 0
+
 
                 forrige = 0
                 for k in range(0,len(self.dager_per_mnd)):
