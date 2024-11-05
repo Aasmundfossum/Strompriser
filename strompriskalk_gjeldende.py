@@ -20,7 +20,8 @@ class Strompriskalk:
     def regn_ut_strompris(self):
         #Kjører hele beregningen, samt viser input og resultater i streamlit-nettside
         self.streamlit_input()
-        if self.forbruksfil and (self.prissats_filnavn or self.konst_pris):
+        #if self.forbruksfil and (self.prissats_filnavn or self.konst_pris):
+        if self.forbruksfil and (self.nettleieselskap or self.konst_pris):
             self.bestem_prissatser()
             self.fiks_forbruksfil()
             self.dager_i_hver_mnd()
@@ -54,14 +55,23 @@ class Strompriskalk:
             with c2:
                 self.konst_spot = st.number_input(label='Konstant timesverdi på spotpris (kr/kWh)',value=1.00, step=0.01)
             
-            self.prissats_filnavn = None
+            #self.prissats_filnavn = None
 
         elif self.konst_pris == False:
-            #self.prissats_filnavn = st.file_uploader(label='Fil på riktig format som inneholder prissatser for kapasitetsledd, energiledd og offentlige avgifter',type='xlsx')
-            self.nettleieselskap = st.selectbox('Velg nettleieselskap', ['BKK', 'Glitre', 'Lede', 'Tensio'])
-            self.prissats_filnavn = f'Prissatser_nettleie_{self.nettleieselskap}.xlsx'
-            
             self.type_kunde = st.selectbox(label='Type strømkunde',options=['Privatkunde', 'Mindre næringskunde', 'Større næringskunde'],index=0)
+            prissats_fil = pd.read_excel('Prissatser_nettleie_alle.xlsx', sheet_name=self.type_kunde)
+            prissats_fil = prissats_fil.iloc[1:,:]
+            prissats_fil = prissats_fil.dropna()
+            nettselskaper = list(prissats_fil['Nettselskap'])
+            #self.prissats_filnavn = st.file_uploader(label='Fil på riktig format som inneholder prissatser for kapasitetsledd, energiledd og offentlige avgifter',type='xlsx')
+            self.nettleieselskap = st.selectbox('Velg nettleieselskap', nettselskaper)
+            #self.prissats_filnavn = f'Prissatser_nettleie_{self.nettleieselskap}.xlsx'
+
+            if self.nettleieselskap is not None:
+                relevant_rad = prissats_fil[prissats_fil['Nettselskap'] == self.nettleieselskap]
+                st.write(relevant_rad)
+            ### !!!!
+            
             st.subheader('Spotpris')
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -70,6 +80,11 @@ class Strompriskalk:
                 self.spotprisfil_aar = st.selectbox(label='Årstall for spotpriser',options=['2023', '2022', '2021', '2020'],index=0)
             with c3:
                 self.paaslag = st.number_input(label='Påslag på spotpris (kr/kWh)', value=0.05, step=0.01)
+            
+            st.subheader('Strømstøtte')
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                self.stromstotte = st.checkbox(label='Trekk fra strømstøtte')
             
             st.subheader('Merverdiavgift')
             c1, c2, c3 = st.columns(3)
@@ -83,47 +98,52 @@ class Strompriskalk:
         self.skuddaar = False
         self.spotprisfil = 'Spotpriser.xlsx'
         self.mva_faktor = mva_faktor
+        self.nettleiesatser = relevant_rad
 
     def bestem_prissatser(self):
         #Leser av prissatser for nettleie fra excel-filen som er lastet opp. Skjer kun hvis man ikke velger konstant pris
         if self.konst_pris == False:
-            prissats_fil = pd.read_excel(self.prissats_filnavn, sheet_name=self.type_kunde)
+            #prissats_fil = pd.read_excel(self.prissats_filnavn, sheet_name=self.type_kunde)
             
             if self.type_kunde != 'Større næringskunde':
                 
-                if self.mva == False:
-                    kol0 = 6
-                    kol00 = 4
-                else:
-                    kol0 = 7
-                    kol00 = 3
-                self.energi = prissats_fil.iloc[0,kol0]                     #Energiledd inkl. fba.
-                self.reduksjon_energi = prissats_fil.iloc[1,kol0]
-                self.fast_avgift = prissats_fil.iloc[2,kol0]
-                self.kap_sats = prissats_fil.iloc[:,kol00]
+                #if self.mva == False:
+                #    kol0 = 6
+                #    kol00 = 4
+                #else:
+                #    kol0 = 7
+                #    kol00 = 3
+                #self.energi = prissats_fil.iloc[0,kol0]                     #Energiledd inkl. fba.
+                #self.reduksjon_energi = prissats_fil.iloc[1,kol0]
+                #self.fast_avgift = prissats_fil.iloc[2,kol0]
+                #self.kap_sats = prissats_fil.iloc[:,kol00]
 
-                self.max_kW_kap_sats = prissats_fil.iloc[:,2]
-                self.starttid_reduksjon = prissats_fil.iloc[0,10]                     # Klokkeslett for start av reduksjon i energileddpris
-                self.sluttid_reduksjon = prissats_fil.iloc[1,10]
+                #self.max_kW_kap_sats = prissats_fil.iloc[:,2]
+                #self.starttid_reduksjon = prissats_fil.iloc[0,10]                     # Klokkeslett for start av reduksjon i energileddpris
+                #self.sluttid_reduksjon = prissats_fil.iloc[1,10]
                 
-                helg_spm = prissats_fil.iloc[2,10]
-                if helg_spm == 'Ja':
-                    self.helgereduksjon = True
-                elif helg_spm == 'Nei':
-                    self.helgereduksjon = False
+                #helg_spm = prissats_fil.iloc[2,10]
+                #if helg_spm == 'Ja':
+                #    self.helgereduksjon = True
+                #elif helg_spm == 'Nei':
+                #    self.helgereduksjon = False
+                
+                # PRIVATKUNDE:
+                self.energiledd_dag = (self.nettleiesatser.iloc[0,16]/1.25)*self.mva_faktor
+                self.energiledd_natt = (self.nettleiesatser.iloc[0,17]/1.25)*self.mva_faktor
+                self.fast_avgift = ((self.nettleiesatser.iloc[0,21]/1.25)/100)*self.mva_faktor                # Enovaavgift på 1.25 øre/kWh inkl mva.        OBS! kr VS øre per kWh
+
+                pass
 
             else:
-                kol = 1
-                self.energiledd_storre_naring_sommer = prissats_fil.iloc[2,kol]*self.mva_faktor
-                self.energiledd_storre_naring_vinter = prissats_fil.iloc[3,kol]*self.mva_faktor
-                self.kap_sats_apr_sept = prissats_fil.iloc[6,kol]*self.mva_faktor
-                self.kap_sats_okt_mar = prissats_fil.iloc[4,kol]*self.mva_faktor
-                self.avgift_sats_jan_mar = prissats_fil.iloc[8,kol]*self.mva_faktor
-                self.avgift_sats_apr_des = prissats_fil.iloc[9,kol]*self.mva_faktor
-                self.fastledd_sats = prissats_fil.iloc[0,kol]*self.mva_faktor
-                self.sond_avgift_sats = prissats_fil.iloc[11,kol]*self.mva_faktor
-
-            self.prissats_fil = prissats_fil
+                self.energiledd_storre_naring_sommer = self.nettleiesatser.iloc[0,2]*self.mva_faktor
+                self.energiledd_storre_naring_vinter = self.nettleiesatser.iloc[0,3]*self.mva_faktor
+                self.kap_sats_apr_sept = self.nettleiesatser.iloc[0,4]*self.mva_faktor*12               #OBS: kr/mnd eller kr/år
+                self.kap_sats_okt_mar = self.nettleiesatser.iloc[0,5]*self.mva_faktor*12                #OBS: kr/mnd eller kr/år
+                self.avgift_sats_jan_mar = self.nettleiesatser.iloc[0,6]*self.mva_faktor
+                self.avgift_sats_apr_des = self.nettleiesatser.iloc[0,7]*self.mva_faktor
+                self.fastledd_sats = self.nettleiesatser.iloc[0,1]*self.mva_faktor*12                    #OBS: kr/mnd eller kr/år
+                self.sond_avgift_sats = self.nettleiesatser.iloc[0,9]                                    #800 kr/år Antas ikke * med mva
 
 
     def fiks_forbruksfil(self):
@@ -147,8 +167,17 @@ class Strompriskalk:
         # Regner ut spotpris med timesoppløsning og månedsoppløsning. Hvis ikke konstante prisverdier tas hensyn til mva og påslag
         if self.konst_pris == False:
             spot_sats = pd.read_excel(self.spotprisfil,sheet_name=self.spotprisfil_aar)
-            spot_sats = spot_sats.loc[:,self.sone]+self.paaslag
-            spot_time = self.forb*(spot_sats/self.mva_faktor)
+            #spot_sats = (spot_sats.loc[:,self.sone]/1.25)+self.paaslag                                     # Priser i spotprisfil er INKL mva.
+            spot_sats = (spot_sats.loc[:,self.sone]+self.paaslag)/1.25                                   # Denne for konsistens med tidligere versjon. Den over er bedre (?)
+            
+            # Strømstøtte: Man får dekket 90 % av kostnaden over 73 øre/kWh:
+            if self.stromstotte == True:
+                spot_sats = np.array(spot_sats)
+                for i in range(0,len(spot_sats)):
+                    if spot_sats[i] > 0.73:
+                        spot_sats[i] = spot_sats[i] - ((spot_sats[i]-0.73)*0.9)
+
+            spot_time = self.forb*(spot_sats*self.mva_faktor)                                       # Sjekk om det er riktig med mva av påslaget også
             spot_mnd = np.zeros(12)
             forrige = 0
             for k in range(0,len(self.dager_per_mnd)):
@@ -236,12 +265,12 @@ class Strompriskalk:
                     if dagtype == 'ukedag':
                         for j in range(0,len(dagsforb)):
                             if j < self.sluttid_reduksjon or j >= self.starttid_reduksjon:
-                                energiledd_time[i-24+j]=dagsforb[j]*(self.energi-self.reduksjon_energi)
+                                energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_natt/100)
                             else:
-                                energiledd_time[i-24+j]=dagsforb[j]*(self.energi)
+                                energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_dag/100)
                     elif dagtype == 'helg':
                         for j in range(0,len(dagsforb)):
-                            energiledd_time[i-24+j]=dagsforb[j]*(self.energi-self.reduksjon_energi)
+                            energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_natt/100)
 
                 for j in range(0,len(energiledd_time)):
                     if energiledd_time[j] < 0:
