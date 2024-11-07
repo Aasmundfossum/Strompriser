@@ -31,7 +31,7 @@ class Strompriskalk:
             self.offentlige_avgifter()
             self.nettleie_hvis_konstant_sats()
             #self.spotpris()
-            self.ekstra_nettleie_storre_naring()
+            self.fastledd_storre_naring()
             self.hele_nettleie()
             self.totaler()
             self.plot_resultater()
@@ -105,45 +105,41 @@ class Strompriskalk:
         if self.konst_pris == False:
             #prissats_fil = pd.read_excel(self.prissats_filnavn, sheet_name=self.type_kunde)
             
-            if self.type_kunde != 'Større næringskunde':
-                
-                #if self.mva == False:
-                #    kol0 = 6
-                #    kol00 = 4
-                #else:
-                #    kol0 = 7
-                #    kol00 = 3
-                #self.energi = prissats_fil.iloc[0,kol0]                     #Energiledd inkl. fba.
-                #self.reduksjon_energi = prissats_fil.iloc[1,kol0]
-                #self.fast_avgift = prissats_fil.iloc[2,kol0]
-                #self.kap_sats = prissats_fil.iloc[:,kol00]
+            if self.type_kunde == 'Privatkunde':
+                self.energiledd_dag = (self.nettleiesatser.iloc[0,16]/1.25)*self.mva_faktor                        #                      
+                self.energiledd_natt_helg = (self.nettleiesatser.iloc[0,17]/1.25)*self.mva_faktor        
+                self.kap_sats = list((self.nettleiesatser.iloc[0,1:16]/1.25)*self.mva_faktor)
+                self.forbruksavgift_jan_mar = (self.nettleiesatser.iloc[0,19]/1.25)*self.mva_faktor                # Forbruksavgift inkl. mva
+                self.forbruksavgift_apr_des = (self.nettleiesatser.iloc[0,20]/1.25)*self.mva_faktor
+                self.enovaavgift = (self.nettleiesatser.iloc[0,21]/1.25)*self.mva_faktor                     # Enovaavgift på 1.25 øre/kWh inkl mva.        OBS! kr VS øre per kWh   
+                helg_spm = self.nettleiesatser.iloc[0,18]
+                if helg_spm == 'Ja':
+                    self.helgereduksjon = True
+                elif helg_spm == 'Nei':
+                    self.helgereduksjon = False
 
-                #self.max_kW_kap_sats = prissats_fil.iloc[:,2]
-                #self.starttid_reduksjon = prissats_fil.iloc[0,10]                     # Klokkeslett for start av reduksjon i energileddpris
-                #self.sluttid_reduksjon = prissats_fil.iloc[1,10]
-                
-                #helg_spm = prissats_fil.iloc[2,10]
-                #if helg_spm == 'Ja':
-                #    self.helgereduksjon = True
-                #elif helg_spm == 'Nei':
-                #    self.helgereduksjon = False
-                
-                # PRIVATKUNDE:
-                self.energiledd_dag = (self.nettleiesatser.iloc[0,16]/1.25)*self.mva_faktor
-                self.energiledd_natt = (self.nettleiesatser.iloc[0,17]/1.25)*self.mva_faktor
-                self.fast_avgift = ((self.nettleiesatser.iloc[0,21]/1.25)/100)*self.mva_faktor                # Enovaavgift på 1.25 øre/kWh inkl mva.        OBS! kr VS øre per kWh
+            elif self.type_kunde == 'Mindre næringskunde':
+                self.energiledd_dag = self.nettleiesatser.iloc[0,16]*self.mva_faktor                        #                      
+                self.energiledd_natt_helg = self.nettleiesatser.iloc[0,17]*self.mva_faktor        
+                self.kap_sats = list(self.nettleiesatser.iloc[0,1:16]*self.mva_faktor)
+                self.forbruksavgift_jan_mar = self.nettleiesatser.iloc[0,19]*self.mva_faktor                # Forbruksavgift inkl. mva
+                self.forbruksavgift_apr_des = self.nettleiesatser.iloc[0,20]*self.mva_faktor
+                self.enovaavgift = self.nettleiesatser.iloc[0,22]                                        # Enovaavgift på 800 kr/år   Antas ikke * med mva
+                helg_spm = self.nettleiesatser.iloc[0,18]
+                if helg_spm == 'Ja':
+                    self.helgereduksjon = True
+                elif helg_spm == 'Nei':
+                    self.helgereduksjon = False    
 
-                pass
-
-            else:
+            elif self.type_kunde == 'Større næringskunde':
                 self.energiledd_storre_naring_sommer = self.nettleiesatser.iloc[0,2]*self.mva_faktor
                 self.energiledd_storre_naring_vinter = self.nettleiesatser.iloc[0,3]*self.mva_faktor
-                self.kap_sats_apr_sept = self.nettleiesatser.iloc[0,4]*self.mva_faktor*12               #OBS: kr/mnd eller kr/år
-                self.kap_sats_okt_mar = self.nettleiesatser.iloc[0,5]*self.mva_faktor*12                #OBS: kr/mnd eller kr/år
-                self.avgift_sats_jan_mar = self.nettleiesatser.iloc[0,6]*self.mva_faktor
-                self.avgift_sats_apr_des = self.nettleiesatser.iloc[0,7]*self.mva_faktor
-                self.fastledd_sats = self.nettleiesatser.iloc[0,1]*self.mva_faktor*12                    #OBS: kr/mnd eller kr/år
-                self.sond_avgift_sats = self.nettleiesatser.iloc[0,9]                                    #800 kr/år Antas ikke * med mva
+                self.kap_sats_apr_sept = self.nettleiesatser.iloc[0,4]*self.mva_faktor
+                self.kap_sats_okt_mar = self.nettleiesatser.iloc[0,5]*self.mva_faktor
+                self.forbruksavgift_jan_mar = self.nettleiesatser.iloc[0,6]*self.mva_faktor                # Forbruksavgift: 9.51 eller 16.44 øre/kWh
+                self.forbruksavgift_apr_des = self.nettleiesatser.iloc[0,7]*self.mva_faktor
+                self.fastledd_sats = self.nettleiesatser.iloc[0,1]*self.mva_faktor
+                self.enovaavgift = self.nettleiesatser.iloc[0,9]                                    #800 kr/år Antas ikke * med mva
 
 
     def fiks_forbruksfil(self):
@@ -243,9 +239,10 @@ class Strompriskalk:
                     
                     #Ukedag eller helligdag:
                     dagtype ="ukedag"
+                    
+                    year = int(self.spotprisfil_aar)
+                    dato = datetime.datetime(year, 1, 1) + datetime.timedelta(dag_nummer - 1)
                     if self.helgereduksjon == True:
-                        year = int(self.spotprisfil_aar)
-                        dato = datetime.datetime(year, 1, 1) + datetime.timedelta(dag_nummer - 1)
                         if dato.weekday() >= 5:         
                             dagtype="helg"
                         
@@ -261,16 +258,27 @@ class Strompriskalk:
                         if (dato.month, dato.day) in norske_helligdager:
                             dagtype="helg"
                     
+                    if self.type_kunde == 'Privatkunde':
+                        # Trekker fra forbruksavgift og enovaavgift fra energileddet, som ble oppgitt inkludert dette
+                        if dato.month <= 2:
+                            energiledd_sats_dag = self.energiledd_dag - self.forbruksavgift_jan_mar - self.enovaavgift                         # øre/kWh
+                            energiledd_sats_natt = self.energiledd_natt_helg - self.forbruksavgift_jan_mar - self.enovaavgift
+                        else:
+                            energiledd_sats_dag = self.energiledd_dag - self.forbruksavgift_apr_des - self.enovaavgift
+                            energiledd_sats_natt = self.energiledd_natt_helg - self.forbruksavgift_apr_des - self.enovaavgift
+                    elif self.type_kunde == 'Mindre næringskunde':
+                            energiledd_sats_dag = self.energiledd_dag
+                            energiledd_sats_natt = self.energiledd_natt_helg
 
                     if dagtype == 'ukedag':
                         for j in range(0,len(dagsforb)):
-                            if j < self.sluttid_reduksjon or j >= self.starttid_reduksjon:
-                                energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_natt/100)
+                            if j < 6 or j >= 22:
+                                energiledd_time[i-24+j]=dagsforb[j]*(energiledd_sats_natt/100)                 # øre/kWh til kr/kWh
                             else:
-                                energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_dag/100)
+                                energiledd_time[i-24+j]=dagsforb[j]*(energiledd_sats_dag/100)
                     elif dagtype == 'helg':
                         for j in range(0,len(dagsforb)):
-                            energiledd_time[i-24+j]=dagsforb[j]*(self.energiledd_natt/100)
+                            energiledd_time[i-24+j]=dagsforb[j]*(energiledd_sats_natt/100)
 
                 for j in range(0,len(energiledd_time)):
                     if energiledd_time[j] < 0:
@@ -307,9 +315,9 @@ class Strompriskalk:
 
                 if self.type_kunde == 'Større næringskunde':   
                     if 3 <= i <=8: 
-                        kap_sats = self.kap_sats_apr_sept
+                        kap_sats = self.kap_sats_apr_sept*12
                     else:
-                        kap_sats = self.kap_sats_okt_mar
+                        kap_sats = self.kap_sats_okt_mar*12             # kr/kW/år
                     
                     kapledd_time_denne_mnd = [((kap_sats/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]*np.max(mnd_forb))/(self.dager_per_mnd[i]*24)] * self.dager_per_mnd[i]*24
                     for j in range(0,len(kapledd_time_denne_mnd)):
@@ -331,8 +339,9 @@ class Strompriskalk:
                     tre_hoyeste = max_per_dag_sort[-3:]
                     snitt_tre_hoyeste = np.mean(tre_hoyeste)
 
-                    for k in range(0,len(self.max_kW_kap_sats)):
-                        if snitt_tre_hoyeste < self.max_kW_kap_sats[k]:
+                    max_kW_kap_sats = [2, 5, 10, 15, 20, 25, 50, 75, 100, 150, 200, 300, 400, 500, 99999]
+                    for k in range(0,len(max_kW_kap_sats)):
+                        if snitt_tre_hoyeste < max_kW_kap_sats[k]:
                             break
                     kapledd_mnd[i] = self.kap_sats[k]
 
@@ -353,45 +362,44 @@ class Strompriskalk:
         # Hvis mindre næringskunde: Avlest sats på fast avgift (satt til 0)
         # Hvis privatkunde: Avlest sats på fast avgift (enovaavgift) kr/kWh
         # Returnerer offentlige avgifter med timesoppløsning og månedsoppløsning
-        if self.konst_pris == False:
-            if self.type_kunde == 'Større næringskunde':
-                offentlig_mnd = np.zeros(12)
-                offentlig_time = []
-                forrige = 0
-                for i in range(0,len(self.dager_per_mnd)):
-                    mnd_forb = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
-                    forrige = forrige + self.dager_per_mnd[i]*24
+        if self.konst_pris == False:   
+            offentlig_mnd = np.zeros(12)
+            offentlig_time = []
+            forrige = 0
+            for i in range(0,len(self.dager_per_mnd)):
+                mnd_forb = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
+                forrige = forrige + self.dager_per_mnd[i]*24
+                
+                if self.type_kunde == 'Privatkunde':
                     if i <=2:
-                        avgift_sats = self.avgift_sats_jan_mar
+                        avgift_sats = self.forbruksavgift_jan_mar + self.enovaavgift                           # øre/kWh
                     else:
-                        avgift_sats = self.avgift_sats_apr_des
-                    
-                    offentlig_time = offentlig_time + [avgift_sats/100*mnd_forb]
-                    offentlig_mnd[i] = np.sum([avgift_sats/100*mnd_forb])
+                        avgift_sats = self.forbruksavgift_apr_des + self.enovaavgift
+                
+                    offentlig_time = offentlig_time + [(avgift_sats/100)*mnd_forb]
+                
+                else:
+                    if i <=2:
+                        avgift_sats = self.forbruksavgift_jan_mar
+                    else:
+                        avgift_sats = self.forbruksavgift_apr_des
+                
+                    offentlig_time = offentlig_time + [(avgift_sats/100*mnd_forb)+self.enovaavgift/8760]
 
-                offentlig_time = [item for sublist in offentlig_time for item in sublist]
-                offentlig_time = np.array(offentlig_time)
-                for j in range(0,len(offentlig_time)):
-                    if offentlig_time[j] < 0:
-                        offentlig_time[j] = 0
-                for k in range(0,len(offentlig_mnd)):
-                    if offentlig_mnd[k] < 0:
-                        offentlig_mnd[k] = 0
-            else:            
-                offentlig_time = self.forb*self.fast_avgift
-            
-                for i in range(0,len(offentlig_time)):
-                    if offentlig_time[i] < 0:
-                        offentlig_time[i] = 0
+            offentlig_time = [item for sublist in offentlig_time for item in sublist]
+            offentlig_time = np.array(offentlig_time)
+            for j in range(0,len(offentlig_time)):
+                if offentlig_time[j] < 0:
+                    offentlig_time[j] = 0
 
-                offentlig_mnd = np.zeros(12)    
-                forrige = 0
-                for k in range(0,len(self.dager_per_mnd)):
-                    offentlig_mnd[k] = np.sum(offentlig_time[forrige:forrige+self.dager_per_mnd[k]*24])
-                    forrige = forrige + self.dager_per_mnd[k]*24
+            offentlig_mnd = np.zeros(12)    
+            forrige = 0
+            for k in range(0,len(self.dager_per_mnd)):
+                offentlig_mnd[k] = np.sum(offentlig_time[forrige:forrige+self.dager_per_mnd[k]*24])
+                forrige = forrige + self.dager_per_mnd[k]*24
 
-            self.offentlig_time = offentlig_time
-            self.offentlig_mnd = offentlig_mnd
+        self.offentlig_time = offentlig_time
+        self.offentlig_mnd = offentlig_mnd
 
     def nettleie_hvis_konstant_sats(self):
         # Kun hvis konstante prisverdier
@@ -408,40 +416,34 @@ class Strompriskalk:
             self.konst_nettleie_time = konst_nettleie_time
             self.konst_nettleie_mnd = konst_nettleie_mnd
 
-    def ekstra_nettleie_storre_naring(self):
+    def fastledd_storre_naring(self):
         # Kun hvis ikke konstante prisverdier:
         # Leser av og Regner ut ekstra deler av nettleien som kun finnes for større næringskunder: Fastledd og næringsavgift til energifondet
         # Fordeler denne kun mellom alle årets timer
         if self.konst_pris == False:
             if self.type_kunde == 'Større næringskunde':
                 fastledd_mnd = np.zeros(12)
-                fond_avgift_mnd = np.zeros(12)
                 fastledd_time = []
-                fond_avgift_time =[]
 
                 forrige = 0
                 for i in range(0,len(self.dager_per_mnd)):
                     mnd_forb = self.forb[forrige:forrige+self.dager_per_mnd[i]*24]
                     forrige = forrige + self.dager_per_mnd[i]*24  
 
-                    fastledd_mnd[i] = (self.fastledd_sats/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]
-                    fond_avgift_mnd[i] = (self.sond_avgift_sats/np.sum(self.dager_per_mnd))*self.dager_per_mnd[i]
+                    fastledd_mnd[i] = (self.fastledd_sats*12/(np.sum(self.dager_per_mnd)))*self.dager_per_mnd[i]
 
                     for m in range(0,len(mnd_forb)):
                         fastledd_time = fastledd_time + [fastledd_mnd[i]/(len(mnd_forb))]
-                        fond_avgift_time = fond_avgift_time + [fond_avgift_mnd[i]/(len(mnd_forb))]
 
                 self.fastledd_time = fastledd_time
                 self.fastledd_mnd = fastledd_mnd
-                self.fond_avgift_time = fond_avgift_time
-                self.fond_avgift_mnd = fond_avgift_mnd 
 
     def hele_nettleie(self):
         # Regner ut total nettleie som sum av de ulike delene, avhengige av hvilke som er aktuelle i ulike tilfeller
         if self.konst_pris == False:
             if self.type_kunde == 'Større næringskunde':
-                tot_nettleie_time = self.fastledd_time+self.energiledd_time+self.kapledd_time+self.offentlig_time+self.fond_avgift_time
-                tot_nettleie_mnd = self.fastledd_mnd+self.energiledd_mnd+self.kapledd_mnd+self.offentlig_mnd+self.fond_avgift_mnd                 
+                tot_nettleie_time = self.fastledd_time+self.energiledd_time+self.kapledd_time+self.offentlig_time#+self.fond_avgift_time
+                tot_nettleie_mnd = self.fastledd_mnd+self.energiledd_mnd+self.kapledd_mnd+self.offentlig_mnd#+self.fond_avgift_mnd                 
             
             else:
                 tot_nettleie_time = self.energiledd_time+self.kapledd_time+self.offentlig_time
@@ -474,10 +476,10 @@ class Strompriskalk:
                 mva_str = 'ekskl. mva.'
             
             if self.type_kunde == 'Større næringskunde':
-                timesnettleie_til_plot = pd.DataFrame({'Energiledd':self.energiledd_time, 'Effektledd':self.kapledd_time, 'Forbruksavgift':self.offentlig_time, 'Fastledd':self.fastledd_time, 'Avgift til energifondet':self.fond_avgift_time})
+                timesnettleie_til_plot = pd.DataFrame({'Energiledd':self.energiledd_time, 'Effektledd':self.kapledd_time, 'Forbruksavgift og Enova-avgift':self.offentlig_time, 'Fastledd':self.fastledd_time})#, 'Avgift til energifondet':self.fond_avgift_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f', '#b7dc8f', '#FAE3B4']
             else:
-                timesnettleie_til_plot = pd.DataFrame({'Energiledd inkl. fba.':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Andre offentlige avgifter':self.offentlig_time})
+                timesnettleie_til_plot = pd.DataFrame({'Energiledd':self.energiledd_time, 'Kapasitetsledd':self.kapledd_time, 'Forbruksavgift og Enova-avgift':self.offentlig_time})
                 plot_farger = ['#1d3c34', '#FFC358', '#48a23f']
 
             fig1 = px.line(timesnettleie_til_plot, title='Nettleie for '+self.type_kunde.lower()+' '+mva_str, color_discrete_sequence=plot_farger)
